@@ -21,10 +21,10 @@ class Trainer:
         self.network = MuZeroNetwork(config.observation_dim,
                                     config.stacked_observations,
                                     config.embedding_size,
-                                    config.fc_dynamics_layers,
-                                    config.fc_reward_layers,
-                                    config.fc_policy_layers,
-                                    config.fc_value_layers,
+                                    config.dynamics_layers,
+                                    config.reward_layers,
+                                    config.policy_layers,
+                                    config.value_layers,
                                     config.support_limit,
                                     len(config.action_space)).to(self.config.device)
         self.network.set_weights(initial_checkpoint['model_state_dict'])

@@ -38,13 +38,13 @@ class DynamicsNetwork(nn.Module):
     def __init__(self,
                 observation_dim: List[int],
                 embedding_size: int,
-                fc_dynamics_layers: List[int],
-                fc_reward_layers: List[int],
+                dynamics_layers: List[int],
+                reward_layers: List[int],
                 support_size: int) -> None:
         super().__init__()
         self.nodes = observation_dim[0]
-        self.hidden_state_network = mlp([self.nodes * (embedding_size + 1), *fc_dynamics_layers, self.nodes * embedding_size])
-        self.reward_network = mlp([self.nodes * embedding_size, *fc_reward_layers, support_size])
+        self.hidden_state_network = mlp([self.nodes * (embedding_size + 1), *dynamics_layers, self.nodes * embedding_size])
+        self.reward_network = mlp([self.nodes * embedding_size, *reward_layers, support_size])
 
 
     def forward(self, state_action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -64,13 +64,13 @@ class PredictionNetwork(nn.Module):
     def __init__(self,
                 observation_dim: List[int],
                 embedding_size: int,
-                fc_policy_layers: List[int],
-                fc_value_layers: List[int],
+                policy_layers: List[int],
+                value_layers: List[int],
                 support_size: int,
                 action_space_size: int) -> None:
         super().__init__()
-        self.policy_network = mlp([observation_dim[0] * embedding_size, *fc_policy_layers, action_space_size])
-        self.value_network = mlp([observation_dim[0] * embedding_size, *fc_value_layers, support_size])
+        self.policy_network = mlp([observation_dim[0] * embedding_size, *policy_layers, action_space_size])
+        self.value_network = mlp([observation_dim[0] * embedding_size, *value_layers, support_size])
 
 
     def forward(self, hidden_state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -90,10 +90,10 @@ class MuZeroNetwork(nn.Module):
                 observation_dim: List[int],
                 stacked_observations: int,
                 embedding_size: int,
-                fc_dynamics_layers: List[int],
-                fc_reward_layers: List[int],
-                fc_policy_layers: List[int],
-                fc_value_layers: List[int],
+                dynamics_layers: List[int],
+                reward_layers: List[int],
+                policy_layers: List[int],
+                value_layers: List[int],
                 support_limit: int,
                 action_space_size: int) -> None:
         super().__init__()
@@ -104,10 +104,10 @@ class MuZeroNetwork(nn.Module):
             observation_dim, stacked_observations, embedding_size
         )
         self.dynamics_network = DynamicsNetwork(
-            observation_dim ,embedding_size, fc_dynamics_layers, fc_reward_layers, support_size
+            observation_dim ,embedding_size, dynamics_layers, reward_layers, support_size
         )
         self.prediction_network = PredictionNetwork(
-            observation_dim, embedding_size, fc_policy_layers, fc_value_layers, support_size, action_space_size
+            observation_dim, embedding_size, policy_layers, value_layers, support_size, action_space_size
         )
 
 

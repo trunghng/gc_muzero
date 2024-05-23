@@ -6,7 +6,7 @@ from game import Game, GraphColoring
 from arena import Arena
 from player import Player, RandomPlayer, HumanPlayer, MuZeroPlayer
 from muzero import MuZero
-from utils import generate_erdos_renyi_graph
+from utils import generate_graphs
 
 
 def create_player(player: str) -> Player:
@@ -18,10 +18,9 @@ def create_player(player: str) -> Player:
         return MuZeroPlayer()
 
 
-def create_game(name: str, nodes: int) -> Game:
-    if name == 'graph_coloring':
-        graph = generate_erdos_renyi_graph(nodes)
-        return GraphColoring(graph)
+def create_game(nodes: int) -> Game:
+    graphs = generate_graphs(nodes)
+    return GraphColoring(graphs)
 
 
 if __name__ == '__main__':
@@ -50,7 +49,7 @@ if __name__ == '__main__':
                                 help='Seed')
     selfplay_args.add_argument('--workers', type=int, default=1,
                                 help='Number of self-play workers')
-    selfplay_args.add_argument('--max-moves', type=int, default=7,
+    selfplay_args.add_argument('--max-moves', type=int, default=10,
                                 help='Maximum number of moves to end the game early')
     selfplay_args.add_argument('--stacked-observations', type=int, default=1,
                                 help='')
@@ -72,13 +71,13 @@ if __name__ == '__main__':
     network_args = train_parser.add_argument_group('Network training arguments')
     network_args.add_argument('--embedding-size', type=int, default=16,
                                 help='')
-    network_args.add_argument('--fc-dynamics-layers', type=int, nargs='+', default=[8],
+    network_args.add_argument('--dynamics-layers', type=int, nargs='+', default=[8],
                                 help='Hidden layers in dynamics network')
-    network_args.add_argument('--fc-reward-layers', type=int, nargs='+', default=[8],
+    network_args.add_argument('--reward-layers', type=int, nargs='+', default=[8],
                                 help='Hidden layers in reward head')
-    network_args.add_argument('--fc-policy-layers', type=int, nargs='+', default=[8],
+    network_args.add_argument('--policy-layers', type=int, nargs='+', default=[8],
                                 help='Hidden layers in policy head')
-    network_args.add_argument('--fc-value-layers', type=int, nargs='+', default=[8],
+    network_args.add_argument('--value-layers', type=int, nargs='+', default=[8],
                                 help='Hidden layers in value head')
     network_args.add_argument('--batch-size', type=int, default=64,
                                 help='Mini-batch size')
@@ -104,23 +103,21 @@ if __name__ == '__main__':
                                 help='Whether to save the model')
 
     for p in [play_parser, train_parser]:
-        p.add_argument('--game', type=str, default='graph_coloring', help='Game name')
-        p.add_argument('--nodes', type=int, default=7, help='Number of nodes')
+        p.add_argument('--nodes', type=int, default=10, help='Number of nodes')
 
     args = parser.parse_args()
 
-    game = create_game(args.game, args.nodes)
+    game = create_game(args.nodes)
     args.players = game.players
     args.observation_dim = game.observation_dim
     args.action_space = game.action_space
     args.visit_softmax_temperature_func = game.visit_softmax_temperature_func
 
     if args.mode == 'play':
-        if game.players == 2:
-            p1 = create_player(args.p1)
-            p2 = create_player(args.p2)
-            arena = Arena(p1, p2, game)
-            arena.run(True)
+        p1 = create_player(args.p1)
+        p2 = create_player(args.p2)
+        arena = Arena(p1, p2, game)
+        arena.run(True)
     elif args.mode == 'train':
         args.device = 'cuda:0' if torch.cuda.is_available() and args.gpu else 'cpu'
         muzero = MuZero(game, args)

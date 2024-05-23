@@ -228,13 +228,14 @@ class GameHistory:
 
 class GraphColoring(Game):
 
-    def __init__(self, graph: nx.Graph) -> None:
-        super().__init__(1, [len(graph.nodes), 2], list(graph.nodes))
-        self.graph = graph
-        self.colors = [-1 for _ in range(len(self.graph.nodes))]
+    def __init__(self, graphs: List[nx.Graph]) -> None:
+        self.graphs = graphs
+        super().__init__(1, [len(self.graphs[0].nodes), 2], list(self.graphs[0].nodes))
 
 
     def reset(self) -> ObsType:
+        idx = np.random.randint(len(self.graphs))
+        self.graph = self.graphs[idx]
         self.colors = [-1 for _ in range(len(self.graph.nodes))]
         return self.observation()
 
