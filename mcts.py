@@ -65,7 +65,7 @@ class MinMaxStats:
 
     def normalize(self, value: float) -> float:
         if self.max > self.min:
-            return (value - self.min) / (self.max - self.min)
+            return (value - self.min) / (self.max - self.min)   
         return value
 
 
@@ -182,7 +182,7 @@ class MCTS:
         root = Node(0)
 
         # policy_logits: (B x A)
-        # hidden_state:  (B x channels x h/16 x w/16) | (B x channels x h/16 x w/16)
+        # hidden_state:  
         # value:         (1)
         policy_logits, hidden_state, value = network.initial_inference(Batch.from_data_list([observation]))
 

@@ -18,9 +18,9 @@ def create_player(player: str) -> Player:
         return MuZeroPlayer()
 
 
-def create_game(nodes: int) -> Game:
+def create_game(nodes: int, complete_graph: bool) -> Game:
     graphs = generate_graphs(nodes)
-    return GraphColoring(graphs)
+    return GraphColoring(graphs, complete_graph)
 
 
 if __name__ == '__main__':
@@ -79,14 +79,14 @@ if __name__ == '__main__':
                                 help='Hidden layers in policy head')
     network_args.add_argument('--value-layers', type=int, nargs='+', default=[8],
                                 help='Hidden layers in value head')
-    network_args.add_argument('--batch-size', type=int, default=64,
+    network_args.add_argument('--batch-size', type=int, default=32,
                                 help='Mini-batch size')
     network_args.add_argument('--checkpoint-interval', type=int, default=10,
                                 help='Checkpoint interval')
     network_args.add_argument('--buffer-size', type=int, default=3000,
                                 help='Replay buffer size')
-    network_args.add_argument('--td-steps', type=int, default=9,
-                                help='Number of steps in the future to take into account for calculating the target value')
+    network_args.add_argument('--td-steps', type=int, default=10,
+                                help='Number of steps in the future to take into account for target value calculation')
     network_args.add_argument('--unroll-steps', type=int, default=5,
                                 help='Number of unroll steps')
     network_args.add_argument('--training-steps', type=int, default=100000,
@@ -104,10 +104,11 @@ if __name__ == '__main__':
 
     for p in [play_parser, train_parser]:
         p.add_argument('--nodes', type=int, default=10, help='Number of nodes')
+        p.add_argument('--complete-graph', action='store_true', help='Whether to use complete graph as input to the representation network')
 
     args = parser.parse_args()
 
-    game = create_game(args.nodes)
+    game = create_game(args.nodes, args.complete_graph)
     args.players = game.players
     args.observation_dim = game.observation_dim
     args.action_space = game.action_space

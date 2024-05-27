@@ -7,7 +7,7 @@ import networkx as nx
 from torch_geometric.data import Data
 import matplotlib.pyplot as plt
 
-from utils import generate_erdos_renyi_graph
+from utils import generate_complete_graph
 
 ObsType = TypeVar('ObsType')
 ActType = TypeVar('ActType')
@@ -80,7 +80,8 @@ class GameHistory:
         self.action_encoder = game.action_encoder
         self.initial_observation = Data(
             x=torch.tensor(game.observation(), dtype=torch.float32, requires_grad=False),
-            edge_index=torch.tensor(list(game.graph.edges), dtype=torch.int64, requires_grad=False).transpose(0, 1)
+            edge_index=torch.tensor(list(game.graph.edges), dtype=torch.int64, requires_grad=False).transpose(0, 1),
+            edge_attr=torch.tensor(game.edge_features, dtype=torch.int64, requires_grad=False) if game.complete_graph else None
         )
 
 
@@ -146,8 +147,11 @@ class GameHistory:
                     planes.append(np.zeros_like(self.observations[step]))
 
         stacked_observations = np.concatenate(planes, axis=0)
-        return Data(x=torch.tensor(stacked_observations, dtype=torch.float32, requires_grad=False),
-                    edge_index=self.initial_observation.edge_index)
+        return Data(
+            x=torch.tensor(stacked_observations, dtype=torch.float32, requires_grad=False),
+            edge_index=self.initial_observation.edge_index,
+            edge_attr=self.initial_observation.edge_attr
+        )
 
 
     def compute_return(self, gamma: float) -> float:
@@ -228,14 +232,20 @@ class GameHistory:
 
 class GraphColoring(Game):
 
-    def __init__(self, graphs: List[nx.Graph]) -> None:
+    def __init__(self, graphs: List[nx.Graph], complete_graph: bool) -> None:
         self.graphs = graphs
+        self.complete_graph = complete_graph
         super().__init__(1, [len(self.graphs[0].nodes), 2], list(self.graphs[0].nodes))
 
 
     def reset(self) -> ObsType:
         idx = np.random.randint(len(self.graphs))
-        self.graph = self.graphs[idx]
+        if self.complete_graph:
+            original_graph = self.graphs[idx]
+            self.graph = generate_complete_graph(len(original_graph.nodes))
+            self.edge_features = [1 if e in original_graph.edges else 0 for e in self.graph.edges]
+        else:
+            self.graph = self.graphs[idx]
         self.colors = [-1 for _ in range(len(self.graph.nodes))]
         return self.observation()
 
@@ -275,9 +285,8 @@ class GraphColoring(Game):
 
 
     def observation(self) -> ObsType:
-        """Using feature matrix as the observation, each feature vector is a tuple of the degree and color of that node"""
-        degrees = [d for (_, d) in list(self.graph.degree)]
-        feature_matrix = [[d, c] for (d, c) in zip(degrees, self.colors)]
+        """Using feature matrix as the observation, each feature vector is a tuple of the node label and color of that node"""
+        feature_matrix = [[d, c] for (d, c) in zip(self.graph.nodes, self.colors)]
         return feature_matrix
 
 
@@ -293,6 +302,7 @@ class GraphColoring(Game):
         :param training_steps: number of training steps
         :param training_step: current training step
         """
+
 
     def render(self) -> None:
         plt.figure(figsize=(7, 7))

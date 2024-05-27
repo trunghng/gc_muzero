@@ -14,6 +14,10 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
+def generate_complete_graph(n: int) -> nx.Graph:
+    return nx.complete_graph(n)
+
+
 def generate_graphs(n: int, types: List[str]=['ER'], n_graphs: int=1000) -> List[nx.Graph]:
     graphs = []
     if 'ER' in types:
