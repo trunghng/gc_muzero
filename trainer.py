@@ -26,7 +26,7 @@ class Trainer:
                                     config.policy_layers,
                                     config.value_layers,
                                     config.support_limit,
-                                    len(config.action_space)).to(self.config.device)
+                                    config.action_space_size).to(self.config.device)
         self.network.set_weights(initial_checkpoint['model_state_dict'])
         self.network.train()
         self.optimizer = Adam(self.network.parameters(), lr=self.config.lr,\
@@ -72,21 +72,17 @@ class Trainer:
         value_target_batch = scalar_to_support(value_target_batch, self.config.support_limit)
         reward_target_batch = scalar_to_support(reward_target_batch, self.config.support_limit)
 
-        policy_logits, hidden_state, value = self.network.initial_inference(observation_batch)
-        predictions = [(1.0, value, torch.zeros_like(value), policy_logits)]
+        policy_logits, hidden_state, value = self.network.initial_inference(observation_batch, False)
+        predictions = [(1.0, value, torch.zeros_like(value, requires_grad=True), policy_logits)]
 
         for k in range(1, action_batch.shape[1]):
             policy_logits, hidden_state, value, reward = self.network.recurrent_inference(
-                hidden_state, action_batch[:, k].unsqueeze(-1)
+                hidden_state, action_batch[:, k].unsqueeze(-1), False
             )
 
             # Scale the gradient at the start of dynamics function by 0.5
             scale_gradient(hidden_state, 0.5)
             predictions.append((1.0 / action_batch.shape[1], value, reward, policy_logits))
-
-        for pred in predictions:
-            pred[1].requires_grad = True
-            pred[2].requires_grad = True
 
         value_loss, reward_loss, policy_loss = 0, 0, 0
         for k in range(len(predictions)):

@@ -20,10 +20,10 @@ class Game(ABC):
     def __init__(self,
                 players: int,
                 observation_dim: List[int],
-                action_space: List[ActType]) -> None:
+                action_space_size: int) -> None:
         self.players = players
         self.observation_dim = observation_dim
-        self.action_space = action_space
+        self.action_space_size = action_space_size
         self.to_play = -1 if players == 2 else 0
 
 
@@ -235,7 +235,7 @@ class GraphColoring(Game):
     def __init__(self, graphs: List[nx.Graph], complete_graph: bool) -> None:
         self.graphs = graphs
         self.complete_graph = complete_graph
-        super().__init__(1, [len(self.graphs[0].nodes), 2], list(self.graphs[0].nodes))
+        super().__init__(1, [len(self.graphs[0].nodes), 2], len(self.graphs[0].nodes))
 
 
     def reset(self) -> ObsType:
@@ -264,7 +264,7 @@ class GraphColoring(Game):
         """Taking a node as the input action"""
         self.select_color(action)
         terminated = self.terminated()
-        reward = -(len(set(self.colors)) - 1) if terminated else 0
+        reward = -len(set(self.colors)) if terminated else 0
         return self.observation(), reward, terminated
 
 

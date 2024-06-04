@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import random
 
+import networkx as nx
+
 from game import Game, ActType
 
 
@@ -29,6 +31,13 @@ class HumanPlayer(Player):
             action_str = input(f'Enter your move: ')
             action = int(action_str)
         return action
+
+
+class GreedyPlayer(Player):
+    """Greedy player"""
+
+    def play(self, game: Game) -> ActType:
+        pass
 
 
 class MuZeroPlayer(Player):

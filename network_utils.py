@@ -65,9 +65,9 @@ def scalar_to_support(x: torch.Tensor,
     x = torch.clamp(x, min=-support_limit, max=support_limit)
     floor = x.floor().int()
     prob = x - floor
-    probabilities = torch.zeros((len(x), support_limit * 2 + 1), device=x.device)
-    probabilities[:, floor + support_limit] = 1 - prob
-    probabilities[:, floor + support_limit + 1] = prob
+    probabilities = torch.zeros((x.shape[0], x.shape[1], support_limit * 2 + 1), device=x.device)
+    probabilities[:, :, floor + support_limit] = 1 - prob
+    probabilities[:, :, floor + support_limit + 1] = prob
     return probabilities
 
 

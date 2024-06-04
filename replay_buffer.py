@@ -41,7 +41,7 @@ class ReplayBuffer:
     def sample(self) -> Tuple[Data, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         :return observation_batch:
-        :return action_batch:       (B x (unroll_steps + 1))
+        :return action_batch:       (B x (unroll_steps + 1) x A)
         :return value_target_batch: (B x (unroll_steps + 1))
         :return reward_target_batch:(B x (unroll_steps + 1))
         :return policy_target_batch:(B x (unroll_steps + 1) x A)
@@ -56,7 +56,7 @@ class ReplayBuffer:
             t = random.randint(0, len(game_history))
 
             observations = game_history.stack_observations(
-                t, self.config.stacked_observations, len(self.config.action_space), self.config.stack_action
+                t, self.config.stacked_observations, self.config.action_space_size, self.config.stack_action
             )
 
             encoded_actions = game_history.encoded_actions[t:t + self.config.unroll_steps + 1]
@@ -66,7 +66,7 @@ class ReplayBuffer:
                 encoded_actions.extend([game_history.encoded_actions[i] for i in absorbed_indices])
 
             value_targets, reward_targets, policy_targets = game_history.make_target(
-                t, self.config.td_steps, self.config.gamma, self.config.unroll_steps, len(self.config.action_space)
+                t, self.config.td_steps, self.config.gamma, self.config.unroll_steps, self.config.action_space_size
             )
             batch[0].append(observations)
             batch[1].append(encoded_actions)

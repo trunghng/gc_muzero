@@ -144,38 +144,43 @@ class MuZeroNetwork(nn.Module):
         return policy_logits, value
 
 
-    def initial_inference(self, observation: Data) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def initial_inference(self, observation: Data, inv_transform: bool=True) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Representation + Prediction function
 
         :param observation:
+        :param inv_transform: whether to apply inverse transformation on categorical form of value
         :return policy_logits: (B x action_space_size)
         :return hidden_state: (B x nodes x embedding_size)
-        :return value: (1)
+        :return value: (1) | 
         """
         hidden_state = self.representation(observation)
         policy_logits, value = self.prediction(hidden_state)
-        value = support_to_scalar(value, self.support_limit)
+        if inv_transform:
+            value = support_to_scalar(value, self.support_limit)
         return policy_logits, hidden_state, value
 
 
     def recurrent_inference(self,
                             hidden_state: torch.Tensor,
-                            encoded_action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+                            encoded_action: torch.Tensor,
+                            scalar_transform: bool=True) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Dynamics + Prediction function
 
         :param hidden_state: (B x nodes x embedding_size)
         :param encoded_action: (B x nodes x 1)
+        :param scalar_transform: whether to apply transformation on value and reward
         :return policy_logits: (B x action_space_size)
         :return next_hidden_state: (B x nodes x embedding_size)
-        :return value: (1)
-        :return reward: (1)
+        :return value: (1) |
+        :return reward: (1) |
         """
         next_hidden_state, reward = self.dynamics(hidden_state, encoded_action)
         policy_logits, value = self.prediction(hidden_state)
-        reward = support_to_scalar(reward, self.support_limit)
-        value = support_to_scalar(value, self.support_limit)
+        if scalar_transform:
+            reward = support_to_scalar(reward, self.support_limit)
+            value = support_to_scalar(value, self.support_limit)
         return policy_logits, next_hidden_state, value, reward
 
 

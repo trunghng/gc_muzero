@@ -1,12 +1,13 @@
 import argparse
+from typing import List
 
 import torch
 
 from game import Game, GraphColoring
 from arena import Arena
-from player import Player, RandomPlayer, HumanPlayer, MuZeroPlayer
+from player import Player, RandomPlayer, HumanPlayer, MuZeroPlayer, GreedyPlayer
 from muzero import MuZero
-from utils import generate_graphs
+from utils import generate_graphs, save_dataset, load_dataset
 
 
 def create_player(player: str) -> Player:
@@ -18,8 +19,21 @@ def create_player(player: str) -> Player:
         return MuZeroPlayer()
 
 
-def create_game(nodes: int, complete_graph: bool) -> Game:
-    graphs = generate_graphs(nodes)
+def create_game(nodes: int,
+                graph_types: List[str],
+                n_graphs: int,
+                chromatic_number: int,
+                save_graphs: bool,
+                save_dir: str,
+                load_graphs: bool,
+                graphs_path: str,
+                complete_graph: bool) -> Game:
+    if load_graphs:
+        graphs = load_dataset(graphs_path)
+    else:
+        graphs = generate_graphs(nodes, graph_types, n_graphs, chromatic_number)
+        if save_graphs:
+            save_dataset(save_dir, graphs)
     return GraphColoring(graphs, complete_graph)
 
 
@@ -49,8 +63,6 @@ if __name__ == '__main__':
                                 help='Seed')
     selfplay_args.add_argument('--workers', type=int, default=1,
                                 help='Number of self-play workers')
-    selfplay_args.add_argument('--max-moves', type=int, default=10,
-                                help='Maximum number of moves to end the game early')
     selfplay_args.add_argument('--stacked-observations', type=int, default=1,
                                 help='')
     selfplay_args.add_argument('--stack-action', action='store_true',
@@ -103,15 +115,39 @@ if __name__ == '__main__':
                                 help='Whether to save the model')
 
     for p in [play_parser, train_parser]:
-        p.add_argument('--nodes', type=int, default=10, help='Number of nodes')
-        p.add_argument('--complete-graph', action='store_true', help='Whether to use complete graph as input to the representation network')
+        p.add_argument('--nodes', type=int, default=10,
+                        help='Number of nodes')
+        p.add_argument('--graph-types', type=str, nargs='+', choices=['ER', 'BA', 'WS', 'LT'], default=['ER'],
+                        help='Type of graphs in the dataset')
+        p.add_argument('--n-graphs', type=int, default=100,
+                        help='Number of graphs for each type in the dataset')
+        p.add_argument('--chromatic-number', type=int,
+                        help='Chromatic number, for Leighton graph generation')
+        p.add_argument('--save-graphs', action='store_true',
+                        help='Whether to save the generated graph dataset')
+        p.add_argument('--save-dir', type=str,
+                        help='Directory to save the graph dataset')
+        p.add_argument('--load-graphs', action='store_true',
+                        help='Whether to load the graph dataset')
+        p.add_argument('--graphs-path', type=str,
+                        help='Path to the graph dataset')
+        p.add_argument('--complete-graph', action='store_true',
+                        help='Whether to use complete graph as input to the representation network')
 
     args = parser.parse_args()
 
-    game = create_game(args.nodes, args.complete_graph)
+    if args.chromatic_number is not None and args.nodes % args.chromatic_number != 0:
+        parser.error('Argument --chromatic-number when being specified must be a divisor of --nodes.')
+    if (args.save_graphs and args.save_dir is None) or (not args.save_graphs and args.save_dir is not None):
+        parser.error('Arguments --save-graphs and --save-dir must be specified together.')
+    if (args.load_graphs and args.graphs_path is None) or (not args.load_graphs and args.graphs_path is not None):
+        parser.error('Arguments --graphs-path and --graphs-path must be specified together.')
+
+    game = create_game(args.nodes, args.graph_types, args.n_graphs, args.chromatic_number, args.save_graphs,
+                        args.save_dir, args.load_graphs, args.graphs_path, args.complete_graph)
     args.players = game.players
     args.observation_dim = game.observation_dim
-    args.action_space = game.action_space
+    args.action_space_size = game.action_space_size
     args.visit_softmax_temperature_func = game.visit_softmax_temperature_func
 
     if args.mode == 'play':

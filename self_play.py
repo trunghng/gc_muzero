@@ -30,7 +30,7 @@ class SelfPlay:
                                     config.policy_layers,
                                     config.value_layers,
                                     config.support_limit,
-                                    len(config.action_space))
+                                    config.action_space_size)
         self.network.set_weights(initial_checkpoint['model_state_dict'])
         self.network.eval()
 
@@ -66,7 +66,7 @@ class SelfPlay:
 
         while True:
             stacked_observations = game_history.stack_observations(-1, self.config.stacked_observations,\
-                                    len(self.config.action_space), self.config.stack_action)
+                                    self.config.action_space_size, self.config.stack_action)
             root = self.mcts.search(self.network, stacked_observations, self.game.legal_actions(),
                                     game_history.actions, self.game.action_encoder, self.game.to_play)
             action = self.mcts.select_action(root, temperature)
@@ -75,6 +75,6 @@ class SelfPlay:
             game_history.save(observation, action, reward, self.game.to_play, action_probs, root.value())
             observation = next_observation
 
-            if terminated or len(game_history) > self.config.max_moves:
+            if terminated:
                 break
         return game_history

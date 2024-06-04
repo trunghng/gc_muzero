@@ -9,6 +9,7 @@ from torch_geometric.data import Batch, Data
 
 from game import ActType, PlayerType
 from network import MuZeroNetwork
+from network_utils import support_to_scalar
 
 
 class Node:
@@ -157,7 +158,7 @@ class MCTS:
     def action_probabilities(self, root: Node) -> List[float]:
         total_visits = float(sum([child.visit_count for child in root.children.values()]))
         action_probs = [root.children[action].visit_count / total_visits \
-            if action in root.children else 0 for action in range(len(self.config.action_space))]
+            if action in root.children else 0 for action in range(self.config.action_space_size)]
         return action_probs
 
 
@@ -210,7 +211,7 @@ class MCTS:
     
             if self.config.players == 2:
                 to_play = -1 if len(history) % self.config.players == 1 else 1
-            node.expand(reward, hidden_state, policy_logits, to_play, self.config.action_space)
+            node.expand(reward, hidden_state, policy_logits, to_play, range(self.config.action_space_size))
 
             self.backpropagate(search_path, value, to_play, min_max_stats)
         return root

@@ -1,7 +1,9 @@
 import random
-from typing import List, Tuple
 import math
+from typing import List, Tuple
 from copy import deepcopy
+import os
+import pickle
 
 import numpy as np
 import torch
@@ -16,11 +18,21 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
+def save_dataset(save_dir: str, dataset: List[nx.Graph]) -> None:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    pickle.dump(dataset, open(os.path.join(save_dir, 'dataset.pkl'), 'wb'))
+
+
+def load_dataset(dataset_path: str) -> List[nx.Graph]:
+    return pickle.load(open(dataset_path, 'rb'))
+
+
 def generate_complete_graph(n: int) -> nx.Graph:
     return nx.complete_graph(n)
 
 
-def generate_graphs(n: int, types: List[str]=['ER'], n_graphs: int=1000) -> List[nx.Graph]:
+def generate_graphs(n: int, types: List[str], n_graphs: int, k: int) -> List[nx.Graph]:
     graphs = []
     if 'ER' in types:
         graphs.extend([generate_erdos_renyi_graph(n) for _ in range(n_graphs)])
@@ -28,6 +40,10 @@ def generate_graphs(n: int, types: List[str]=['ER'], n_graphs: int=1000) -> List
         graphs.extend([generate_barabasi_albert_graph(n) for _ in range(n_graphs)])
     if 'WS' in types:
         graphs.extend([generate_watts_strogatz_graph(n) for _ in range(n_graphs)])
+    if 'LT' in types:
+        assert k is not None, "The chromatic number should be provided to generate Leighton graph"
+        graphs.extend([generate_leighton_graph(n, k) for _ in range(n_graphs)])
+
     return graphs
 
 
@@ -87,13 +103,13 @@ class LeightonGraph:
         primes_factors = []
         
         while x % 2 == 0:
-            x /= 2
+            x //= 2
             primes_factors.append(2)
 
         p = 3
-        while p < math.sqrt(x):
+        while p <= math.sqrt(x):
             if x % p == 0:
-                x /= p
+                x //= p
                 primes_factors.append(p)
             else:
                 p += 2
@@ -247,4 +263,14 @@ class LeightonGraph:
             m, c, a, b = self._generate_parameters()
             edges = self._generate_edges(m, c, a, b)
             graph.add_edges_from(edges)
-        return graph
+
+        graph_ = nx.Graph()
+        graph_.add_nodes_from(sorted(graph.nodes))
+        graph_.add_edges_from(graph.edges)
+        return graph_
+
+
+if __name__ == '__main__':
+    lg = LeightonGraph(50, 5)
+    print(lg._prime_factorization(50))
+    print(lg._prime_factorization(5))
