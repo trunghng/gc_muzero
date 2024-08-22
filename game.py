@@ -266,7 +266,7 @@ class GraphColoring(Game):
         """Taking a node as the input action"""
         self.select_color(action)
         terminated = self.terminated()
-        reward = -(len(set(self.colors)) - 1) if terminated else 0
+        reward = -len(set(self.colors)) if terminated else 0
         return self.observation(), reward, terminated
 
     def select_color(self, node: int) -> None:

@@ -6,7 +6,7 @@ import pickle
 import ray
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 
 from game import Game
 from logger import Logger
@@ -93,21 +93,15 @@ class MuZero:
         )
 
     def test(self) -> None:
-        self_play_worker = SelfPlay.remote(self.game, checkpoint, self.config, self.config.seed)
+        self_play_worker = SelfPlay.remote(self.game, self.checkpoint, self.config, self.config.seed)
         histories = []
         for _ in tqdm(range(self.config.tests), desc=f'Testing'):
             history = ray.get(self_play_worker.play.remote(
                 0,  # select actions with max #visits
                 self.config.render)
             )
-            self.logger.log_reward(history.rewards)
             histories.append(history)
-
-        for history in histories:
-            self.logger.log_reward(history.rewards)
-
-        result = np.mean([sum(history.rewards) for history in histories])
-        print('Result:', result)
+        self.logger.log_result(self.config, histories)
 
     def load_model(self):
         checkpoint_path = osp.join(self.config.logdir, 'model.checkpoint')

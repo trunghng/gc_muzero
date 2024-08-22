@@ -73,7 +73,7 @@ class ReplayBuffer:
         :return action_batch:           (B x (unroll_steps + 1))
         :return value_target_batch:     (B x (unroll_steps + 1))
         :return reward_target_batch:    (B x (unroll_steps + 1))
-        :return policy_target_batch:    (B x (unroll_steps + 1) x A)
+        :return policy_target_batch:    (B x (unroll_steps + 1) x action_space_size)
         """
         _, game_histories = self.sample_n_games(self.config.batch_size)
         batch = [[], [], [], [], []]

@@ -7,10 +7,12 @@ import time
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
+import numpy as np
 import ray
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+from game import GameHistory
 from replay_buffer import ReplayBuffer
 from self_play import SelfPlay
 from shared_storage import SharedStorage
@@ -126,6 +128,10 @@ class Logger:
             ray.get(shared_storage_worker.get_checkpoint.remote())
         )
 
-    def log_reward(self, rewards: List[float]) -> None:
+    def log_result(self, config, histories: List[GameHistory]) -> None:
         with open(osp.join(self.logdir, 'rewards.txt'), 'w') as f:
-            f.write(','.join(map(str, rewards)) + '\n')
+            for history in histories:
+                f.write(','.join(map(str, history.rewards)) + '\n')
+
+        result = np.mean([sum(history.rewards) for history in histories])
+        print('Result:', result)

@@ -2,12 +2,14 @@ import argparse
 from argparse import RawTextHelpFormatter
 import json
 import os.path as osp
+import sys
 
 import torch
 
 from game import Game, GraphColoring
-from muzero import MuZero
 from graph_utils import generate_graphs, save_dataset, load_dataset
+from muzero import MuZero
+from utils import generate_graphs, save_dataset, load_dataset
 
 
 def create_game(args) -> Game:
@@ -17,7 +19,10 @@ def create_game(args) -> Game:
         graphs = generate_graphs(args.nodes, args.graph_types, args.graphs, args.chromatic_number)
         if args.save_graphs:
             save_dataset(args.savedir, graphs)
-    return GraphColoring(graphs, args.complete_graph)
+    if args.mode == 'train':
+        return GraphColoring(graphs, args.complete_graph)
+    else:
+        return GraphColoring(graphs)
 
 
 if __name__ == '__main__':
@@ -122,7 +127,8 @@ if __name__ == '__main__':
 
     test_parser.add_argument('--tests', type=int, default=100,
                              help='Number of games for testing')
-
+    test_parser.add_argument('--render', action='store_true',
+                             help='Whether to render each game during testing')
     args = parser.parse_args()
 
     if args.chromatic_number is not None and args.nodes % args.chromatic_number != 0:
@@ -147,8 +153,8 @@ if __name__ == '__main__':
         args.action_space_size = game.action_space_size
         args.visit_softmax_temperature_func = game.visit_softmax_temperature_func
         args.device = 'cuda:0' if torch.cuda.is_available() and args.gpu else 'cpu'
-        muzero = MuZero(game, args)
-        muzero.train()
+        agent = MuZero(game, args)
+        agent.train()
     else:
         try:
             with open(osp.join(args.logdir, 'config.json')) as f:
@@ -164,8 +170,13 @@ if __name__ == '__main__':
         args.observation_dim = game.observation_dim
         args.action_space_size = game.action_space_size
         args.stacked_observations = config['stacked_observations']
-        # todo
-
+        args.embedding_size = config['embedding_size']
+        args.dynamics_layers = config['dynamics_layers']
+        args.reward_layers = config['reward_layers']
+        args.policy_layers = config['policy_layers']
+        args.value_layers = config['value_layers']
+        args.support_limit = config['support_limit']
+        args.stack_action = config['stack_action']
         agent = MuZero(game, args)
         agent.test()
         

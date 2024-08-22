@@ -85,6 +85,6 @@ class SelfPlay:
             if render:
                     self.game.render()
 
-            if terminated or len(game_history) > self.config.max_moves:
+            if terminated:
                 break
         return game_history
