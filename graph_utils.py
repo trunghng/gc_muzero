@@ -8,8 +8,9 @@ import pickle
 import networkx as nx
 
 
-def save_dataset(save_dir: str, dataset: List[nx.Graph]) -> None:
-    if not os.path.exists(save_dir):
+def save_dataset(savedir: str, dataset: List[nx.Graph]) -> None:
+    savedir = os.path.join('data', savedir)
+    if not os.path.exists(savedir):
         os.makedirs(save_dir)
     pickle.dump(dataset, open(os.path.join(save_dir, 'dataset.pkl'), 'wb'))
 
@@ -31,7 +32,7 @@ def generate_graphs(n: int, types: List[str], n_graphs: int, k: int) -> List[nx.
     if 'WS' in types:
         graphs.extend([generate_watts_strogatz_graph(n) for _ in range(n_graphs)])
     if 'LT' in types:
-        assert k is not None, "The chromatic number should be provided to generate Leighton graph"
+        assert k is not None, 'The chromatic number should be provided to generate Leighton graph'
         graphs.extend([generate_leighton_graph(n, k) for _ in range(n_graphs)])
 
     return graphs

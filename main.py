@@ -3,6 +3,7 @@ from argparse import RawTextHelpFormatter
 import json
 import os.path as osp
 import sys
+from types import SimpleNamespace
 
 import torch
 
@@ -30,9 +31,7 @@ if __name__ == '__main__':
 
     mode_parsers = parser.add_subparsers(title='Modes')
     train_parser = mode_parsers.add_parser('train', formatter_class=RawTextHelpFormatter)
-    train_parser.set_defaults(mode='train')
     test_parser = mode_parsers.add_parser('test', formatter_class=RawTextHelpFormatter)
-    test_parser.set_defaults(mode='test')
 
     for p in [train_parser, test_parser]:
         p.add_argument('--nodes', type=int, default=10,
@@ -46,11 +45,13 @@ if __name__ == '__main__':
         p.add_argument('--save-graphs', action='store_true',
                        help='Whether to save the generated graph dataset')
         p.add_argument('--savedir', type=str,
-                       help='Directory to save the graph dataset')
+                       help='Directory to save the graph dataset, i.e. /data/directory_to_save')
         p.add_argument('--load-graphs', action='store_true',
                        help='Whether to load the graph dataset')
         p.add_argument('--graphs-path', type=str,
                        help='Path to the graph dataset')
+        p.add_argument('--workers', type=int, default=2,
+                       help='Number of self-play workers')
         p.add_argument('--exp-name', type=str, default='gc',
                        help='Experiment name')
         p.add_argument('--seed', type=int, default=0,
@@ -72,8 +73,6 @@ if __name__ == '__main__':
         p.add_argument('--logdir', type=str,
                        help='Path to the log directory, which stores model file, config file, etc')
 
-    train_parser.add_argument('--workers', type=int, default=2,
-                              help='Number of self-play workers')
     train_parser.add_argument('--gpu', action='store_true',
                               help='Whether to enable GPU (if available)')
     train_parser.add_argument('--complete-graph', action='store_true',
@@ -124,11 +123,14 @@ if __name__ == '__main__':
     train_parser.add_argument('--mcts-target-value', action='store_true',
                               help='Whether to use value function obtained from re-executing MCTS in '
                               'Reanalyse as target for training')
+    train_parser.set_defaults(mode='train')
 
     test_parser.add_argument('--tests', type=int, default=100,
                              help='Number of games for testing')
     test_parser.add_argument('--render', action='store_true',
                              help='Whether to render each game during testing')
+    test_parser.set_defaults(mode='test')
+
     args = parser.parse_args()
 
     if args.chromatic_number is not None and args.nodes % args.chromatic_number != 0:
@@ -166,6 +168,9 @@ if __name__ == '__main__':
             print('Log directory not found')
             sys.exit(0)
 
+        args.nodes = config['nodes']
+        args.graph_types = config['graph_types']
+        args.chromatic_number = config['chromatic_number']
         game = create_game(args)
         args.observation_dim = game.observation_dim
         args.action_space_size = game.action_space_size

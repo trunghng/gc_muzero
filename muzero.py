@@ -1,12 +1,12 @@
 from copy import deepcopy
 import time
+import math
 import os.path as osp
 import pickle
 
 import ray
 import numpy as np
 import torch
-from tqdm import tqdm
 
 from game import Game
 from logger import Logger
@@ -93,14 +93,23 @@ class MuZero:
         )
 
     def test(self) -> None:
-        self_play_worker = SelfPlay.remote(self.game, self.checkpoint, self.config, self.config.seed)
+        self_play_workers = [
+            SelfPlay.remote(
+                deepcopy(self.game), self.checkpoint, self.config, self.config.seed + i
+            ) for i in range(self.config.workers)
+        ]
+
         histories = []
-        for _ in tqdm(range(self.config.tests), desc=f'Testing'):
-            history = ray.get(self_play_worker.play.remote(
-                0,  # select actions with max #visits
-                self.config.render)
-            )
-            histories.append(history)
+
+        print('\nTesting...')
+        for _ in range(math.ceil(self.config.tests / self.config.workers)):
+            histories += [
+                worker.play.remote(
+                    0,  # select actions with max #visits
+                    self.config.render
+                ) for worker in self_play_workers
+            ]
+        histories = ray.get(histories)
         self.logger.log_result(self.config, histories)
 
     def load_model(self):

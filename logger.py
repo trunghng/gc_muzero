@@ -21,7 +21,7 @@ from shared_storage import SharedStorage
 class Logger:
 
     def __init__(self, exp_name: str):
-        self.logdir = osp.join(os.getcwd(), 'data', exp_name)\
+        self.logdir = osp.join(os.getcwd(), 'results', exp_name)\
             if exp_name else f'/tmp/experiments/{str(dt.now())}'
         if not osp.exists(self.logdir):
             os.makedirs(self.logdir)
