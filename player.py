@@ -29,10 +29,3 @@ class HumanPlayer(Player):
             action_str = input(f'Enter your move: ')
             action = int(action_str)
         return action
-
-
-class MuZeroPlayer(Player):
-    """MuZero player"""
-
-    def play(self, game: Game) -> ActType:
-        pass

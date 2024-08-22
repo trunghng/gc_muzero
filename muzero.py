@@ -1,16 +1,20 @@
 from copy import deepcopy
 import time
-import os
+import os.path as osp
+import pickle
 
 import ray
+import numpy as np
 import torch
+import tqdm
 
 from game import Game
-from self_play import SelfPlay
-from trainer import Trainer
-from replay_buffer import ReplayBuffer
-from shared_storage import SharedStorage
 from logger import Logger
+from self_play import SelfPlay
+from shared_storage import SharedStorage
+from trainer import Trainer
+from reanalyse import Reanalyser
+from replay_buffer import ReplayBuffer
 from utils import set_seed
 
 
@@ -34,58 +38,88 @@ class MuZero:
             'reward_loss': 0,               # Reward loss
             'policy_loss': 0,               # Policy loss
             'training_step': 0,             # Current training step
-            'terminated': False,            # Whether the current game is over
             'played_games': 0,              # Number of games played
-            'played_steps': 0               # Number of steps played
+            'played_steps': 0,              # Number of steps played
+            'reanalysed_games': 0           # Number of reanalysed games
         }
 
-        self.self_play_workers = None
-        self.training_worker = None
-        self.test_worker = None
-        self.replay_buffer_worker = None
-        self.shared_storage_worker = None
+        self.replay_buffer = []
+        self.logger = Logger(self.config.exp_name)
+        self.logger.save_config(vars(deepcopy(self.config)))
 
-        if config.exp_name:
-            exp_name = config.exp_name
-            log_dir = os.path.join(os.getcwd(), 'data', exp_name, f'{exp_name}_s{config.seed}')
-        else:
-            log_dir = None
-        self.logger = Logger(log_dir, self.shared_storage_worker)
-        self.logger.save_config(vars(deepcopy(config)))
-
+        if config.logdir:
+            self.load_model()
 
     def train(self) -> None:
         n_gpus = 0 if self.config.device == 'cpu' else torch.cuda.device_count()
         n_cpus = 0 if n_gpus > 0 else 1
-
-        self.self_play_workers = [SelfPlay.remote(deepcopy(self.game), self.checkpoint, self.config)
-                                    for _ in range(self.config.workers)]
-        self.training_worker = Trainer.options(num_cpus=n_cpus, num_gpus=n_gpus).remote(self.checkpoint, self.config)
-        self.replay_buffer_worker = ReplayBuffer.remote(self.checkpoint, self.config)
-        self.shared_storage_worker = SharedStorage.remote(self.checkpoint)
-        self.shared_storage_worker.set_info.remote({'terminated': False})
-
-        for self_play_worker in self.self_play_workers:
-            self_play_worker.play_continuously.remote(self.shared_storage_worker, self.replay_buffer_worker)
-
-        self.training_worker.update_weights_continuously.remote(self.shared_storage_worker, self.replay_buffer_worker)
-        self.log()
-
-
-    def log(self) -> None:
-        self.test_worker = SelfPlay.remote(deepcopy(self.game), self.checkpoint, self.config)
-        self.test_worker.play_continuously.remote(self.shared_storage_worker, None, test=True)
-        keys = [
-            'episode_length', 'episode_return', 'mean_value', 'training_step', 'played_games', 'loss'
+        training_worker = Trainer.options(
+            num_cpus=n_cpus, num_gpus=n_gpus
+        ).remote(self.checkpoint, self.config)
+        self_play_workers = [
+            SelfPlay.remote(
+                deepcopy(self.game), self.checkpoint, self.config, self.config.seed + i
+            ) for i in range(self.config.workers)
         ]
-        info = ray.get(self.shared_storage_worker.get_info.remote(keys))
+        replay_buffer_worker = ReplayBuffer.remote(
+            self.checkpoint, self.replay_buffer, self.config
+        )
+        shared_storage_worker = SharedStorage.remote(self.checkpoint)
+        reanalyse_workers = [
+            Reanalyser.remote(
+                deepcopy(self.game), self.checkpoint, self.config,
+                self.config.seed + 10 * i
+            ) for i in range(self.config.reanalyse_workers)
+        ]
+        test_worker = SelfPlay.remote(
+            deepcopy(self.game), self.checkpoint, self.config,
+            self.config.seed + self.config.workers
+        )
 
-        try:
-            while info['training_step'] < self.config.training_steps:
-                info = ray.get(self.shared_storage_worker.get_info.remote(keys))
-                print(f'\rEpisode return: {info["episode_return"]:.2f}. Training step: {info["training_step"]}/{self.config.training_steps}. Played games: {info["played_games"]}. Loss: {info["loss"]:.2f}', end="")
-        except KeyboardInterrupt:
-            pass
+        print('\nTraining...')
+        for self_play_worker in self_play_workers:
+            self_play_worker.play_continuously.remote(
+                shared_storage_worker, replay_buffer_worker
+            )
+        training_worker.update_weights_continuously.remote(
+            shared_storage_worker, replay_buffer_worker
+        )
+        for reanalyse_worker in reanalyse_workers:
+            reanalyse_worker.reanalyse.remote(
+                shared_storage_worker, replay_buffer_worker
+            )
+        self.logger.log_continuously(
+            self.config, test_worker, shared_storage_worker, replay_buffer_worker
+        )
 
-        if self.config.save_model:
-            pass
+    def test(self) -> None:
+        self_play_worker = SelfPlay.remote(self.game, checkpoint, self.config, self.config.seed)
+        histories = []
+        for _ in tqdm(range(self.config.tests), desc=f'Testing'):
+            history = ray.get(self_play_worker.play.remote(
+                0,  # select actions with max #visits
+                self.config.render)
+            )
+            self.logger.log_reward(history.rewards)
+            histories.append(history)
+
+        for history in histories:
+            self.logger.log_reward(history.rewards)
+
+        result = np.mean([sum(history.rewards) for history in histories])
+        print('Result:', result)
+
+    def load_model(self):
+        checkpoint_path = osp.join(self.config.logdir, 'model.checkpoint')
+        self.checkpoint = torch.load(checkpoint_path)
+        print(f'\nLoading model checkpoint from {checkpoint_path}')
+
+        if self.config.mode == 'train':
+            replay_buffer_path = osp.join(self.config.logdir, 'replay_buffer.pkl')
+            with open(replay_buffer_path, 'rb') as f:
+                replay_buffer = pickle.load(f)
+            self.replay_buffer = replay_buffer['buffer']
+            self.checkpoint['played_steps'] = replay_buffer['played_steps']
+            self.checkpoint['played_games'] = replay_buffer['played_games']
+            self.checkpoint['reanalysed_games'] = replay_buffer['reanalysed_games']
+            print(f'Loading replay buffer from {replay_buffer_path}')
