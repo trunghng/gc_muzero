@@ -1,8 +1,8 @@
 from copy import deepcopy
-import time
 import math
 import os.path as osp
 import pickle
+import time
 
 import ray
 import numpy as np
@@ -15,7 +15,7 @@ from shared_storage import SharedStorage
 from trainer import Trainer
 from reanalyse import Reanalyser
 from replay_buffer import ReplayBuffer
-from utils import set_seed
+from utils.utils import set_seed
 
 
 class MuZero:
@@ -24,7 +24,7 @@ class MuZero:
         self.game = game
         self.config = config
         set_seed(self.config.seed)
-        ray.init()
+        ray.init(log_to_driver=False)
 
         self.checkpoint = {
             'model_state_dict': None,       # Model state dict
@@ -47,7 +47,7 @@ class MuZero:
         self.logger = Logger(self.config.exp_name)
         self.logger.save_config(vars(deepcopy(self.config)))
 
-        if config.logdir:
+        if hasattr(config, 'logdir') and config.logdir:
             self.load_model()
 
     def train(self) -> None:
@@ -67,8 +67,7 @@ class MuZero:
         shared_storage_worker = SharedStorage.remote(self.checkpoint)
         reanalyse_workers = [
             Reanalyser.remote(
-                deepcopy(self.game), self.checkpoint, self.config,
-                self.config.seed + 10 * i
+                deepcopy(self.game), self.checkpoint, self.config, self.config.seed + i
             ) for i in range(self.config.reanalyse_workers)
         ]
         test_worker = SelfPlay.remote(
@@ -98,14 +97,14 @@ class MuZero:
                 deepcopy(self.game), self.checkpoint, self.config, self.config.seed + i
             ) for i in range(self.config.workers)
         ]
-
         histories = []
 
         print('\nTesting...')
         for _ in range(math.ceil(self.config.tests / self.config.workers)):
             histories += [
                 worker.play.remote(
-                    0,  # select actions with max #visits
+                    0,  # select actions with max #visits,
+                    self.config.player,
                     self.config.render
                 ) for worker in self_play_workers
             ]

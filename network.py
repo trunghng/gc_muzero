@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as gnn
 from torch_geometric.data import Data
 
-from network_utils import mlp, support_to_scalar,\
+from utils.network_utils import mlp, support_to_scalar,\
     scalar_to_support, normalize_hidden_state
 
 
@@ -71,14 +71,14 @@ class PredictionNetwork(nn.Module):
 
     def __init__(self,
                  observation_dim: List[int],
-                 action_space_size: int,
+                 n_actions: int,
                  embedding_size: int,
                  policy_layers: List[int],
                  value_layers: List[int],
                  support_size: int) -> None:
         super().__init__()
         self.policy_network = mlp([
-            observation_dim[0] * embedding_size, *policy_layers, action_space_size
+            observation_dim[0] * embedding_size, *policy_layers, n_actions
         ])
         self.value_network = mlp([
             observation_dim[0] * embedding_size, *value_layers, support_size
@@ -87,7 +87,7 @@ class PredictionNetwork(nn.Module):
     def forward(self, hidden_state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         :param hidden_state:    (B x nodes x embedding_size)
-        :return policy_logits:  (B x action_space_size)
+        :return policy_logits:  (B x n_actions)
         :return value_logits:   (B x support_size)
         """
         policy_logits = self.policy_network(hidden_state)
@@ -99,7 +99,7 @@ class MuZeroNetwork(nn.Module):
 
     def __init__(self,
                  observation_dim: List[int],
-                 action_space_size: int,
+                 n_actions: int,
                  embedding_size: int,
                  dynamics_layers: List[int],
                  reward_layers: List[int],
@@ -118,7 +118,7 @@ class MuZeroNetwork(nn.Module):
             reward_layers, support_size
         )
         self.prediction_network = PredictionNetwork(
-            observation_dim, action_space_size, embedding_size,
+            observation_dim, n_actions, embedding_size,
             policy_layers, value_layers, support_size
         )
 
@@ -135,10 +135,11 @@ class MuZeroNetwork(nn.Module):
                  encoded_action: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         :param hidden_state:        (B x nodes x embedding_size)
-        :param encoded_action:      (B x nodes x 1)
+        :param encoded_action:      (B x nodes)
         :return next_hidden_state:  (B x nodes x embedding_size)
         :return reward_logits:      (B x support_size)
         """
+        encoded_action = encoded_action.unsqueeze(-1)
         state_action = torch.cat((hidden_state, encoded_action), dim=-1)
         next_hidden_state, reward_logits = self.dynamics_network(
             state_action.view(state_action.shape[0], -1)
@@ -148,7 +149,7 @@ class MuZeroNetwork(nn.Module):
     def prediction(self, hidden_state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         :param hidden_state:    (B x nodes x embedding_size)
-        :return policy_logits:  (B x action_space_size)
+        :return policy_logits:  (B x n_actions)
         :return value_logits:   (B x support_size)
         """
         policy_logits, value_logits = self.prediction_network(
@@ -166,7 +167,7 @@ class MuZeroNetwork(nn.Module):
 
         :param observation:
         :param inv_transform: whether to apply inverse transformation on categorical form of value
-        :return policy_logits:  (B x action_space_size)
+        :return policy_logits:  (B x n_actions)
         :return hidden_state:   (B x nodes x embedding_size)
         :return value:          (B x support_size) | (B)
         """
@@ -189,7 +190,7 @@ class MuZeroNetwork(nn.Module):
         :param hidden_state:        (B x nodes x embedding_size)
         :param encoded_action:      (B x noes x 1)
         :param scalar_transform: whether to apply transformation on value and reward
-        :return policy_logits:      (B x action_space_size)
+        :return policy_logits:      (B x n_actions)
         :return next_hidden_state:  (B x nodes x embedding_size)
         :return value:              (B x support_size) | (B)
         :return reward:             (B x support_size) | (B)
@@ -209,13 +210,13 @@ class MuZeroNetwork(nn.Module):
         """
         Dynamics + Prediction function
 
-        :param hidden_state: (B x nodes x embedding_size)
-        :param encoded_action: (B x nodes x 1)
+        :param hidden_state:        (B x nodes x embedding_size)
+        :param encoded_action:      (B x nodes x 1)
         :param scalar_transform: whether to apply transformation on value and reward
-        :return policy_logits: (B x action_space_size)
-        :return next_hidden_state: (B x nodes x embedding_size)
-        :return value: (1) |
-        :return reward: (1) |
+        :return policy_logits:      (B x n_actions)
+        :return next_hidden_state:  (B x nodes x embedding_size)
+        :return value:              (1) |
+        :return reward:             (1) |
         """
         next_hidden_state, reward = self.dynamics(hidden_state, encoded_action)
         policy_logits, value = self.prediction(hidden_state)

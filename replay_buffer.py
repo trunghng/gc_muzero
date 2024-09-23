@@ -8,7 +8,7 @@ from torch_geometric.data import Data, Batch
 
 from game import GameHistory
 from shared_storage import SharedStorage
-from utils import ftensor, set_seed
+from utils.utils import ftensor, set_seed
 
 
 @ray.remote
@@ -73,7 +73,7 @@ class ReplayBuffer:
         :return action_batch:           (B x (unroll_steps + 1))
         :return value_target_batch:     (B x (unroll_steps + 1))
         :return reward_target_batch:    (B x (unroll_steps + 1))
-        :return policy_target_batch:    (B x (unroll_steps + 1) x action_space_size)
+        :return policy_target_batch:    (B x (unroll_steps + 1) x n_actions)
         """
         _, game_histories = self.sample_n_games(self.config.batch_size)
         batch = [[], [], [], [], []]
@@ -83,8 +83,8 @@ class ReplayBuffer:
 
             observations = game_history.stack_n_observations(
                 t,
-                self.config.stacked_observations,
-                self.config.action_space_size,
+                self.config.n_stacked_observations,
+                self.config.n_actions,
                 self.config.stack_action
             )
 
@@ -101,7 +101,7 @@ class ReplayBuffer:
                 self.config.td_steps,
                 self.config.gamma,
                 self.config.unroll_steps,
-                self.config.action_space_size
+                self.config.n_actions
             )
             batch[0].append(observations)
             batch[1].append(encoded_actions)

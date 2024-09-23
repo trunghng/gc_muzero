@@ -8,7 +8,7 @@ import networkx as nx
 from torch_geometric.data import Data
 import matplotlib.pyplot as plt
 
-from graph_utils import generate_complete_graph
+from utils.graph_utils import generate_complete_graph
 
 ObsType = TypeVar('ObsType')
 ActType = TypeVar('ActType')
@@ -17,9 +17,9 @@ ActType = TypeVar('ActType')
 class Game(ABC):
     """Game abstract class"""
 
-    def __init__(self, observation_dim: List[int], action_space_size: int) -> None:
+    def __init__(self, observation_dim: List[int], n_actions: int) -> None:
         self.observation_dim = observation_dim
-        self.action_space_size = action_space_size
+        self.n_actions = n_actions
 
     @abstractmethod
     def reset(self) -> ObsType:
@@ -112,7 +112,7 @@ class GameHistory:
     def stack_n_observations(self,
                              t: int,
                              n: int,
-                             action_space_size: int,
+                             n_actions: int,
                              stack_action: bool=False) -> Data:
         """
         Stack n most recent observations (and corresponding 
@@ -121,7 +121,7 @@ class GameHistory:
 
         :param t: time step of the latest observation to stack
         :param n: number of observations to stack
-        :param action_space_size: size of the action space
+        :param n_actions: size of the action space
         :param stack_action: whether to stack historical actions
         """
         planes = []
@@ -142,7 +142,7 @@ class GameHistory:
             for step in reversed(range(t - n_ + 1, t + 1)):
                 planes.append(self.observations[step])
                 if stack_action:
-                    planes.append(np.full_like(self.observations[step], self.actions[step] / action_space_size))
+                    planes.append(np.full_like(self.observations[step], self.actions[step] / n_actions))
 
             # If n_stack_observations > t + 1, we attach planes of zeros instead
             for _ in range(n - n_):
@@ -160,13 +160,11 @@ class GameHistory:
     def compute_return(self, gamma: float) -> float:
         """
         Compute episode return, assuming that the game is over
-        G = r_1 + gamma * r_2 + ... + gamma^{T-1} * r_T
+        G = r_1 + r_2 + ... + r_T
 
         :param gamma: discount factor
         """
-        eps_return = self.rewards[-1]
-        for r in reversed(self.rewards[0:-1]):
-            eps_return = eps_return * gamma + r
+        eps_return = sum(self.rewards)
         return eps_return
 
     def make_target(
@@ -175,7 +173,7 @@ class GameHistory:
         td_steps: int,
         gamma: float,
         unroll_steps: int,
-        action_space_size: int
+        n_actions: int
     ) -> Tuple[List[float], List[float], List[List[float]]]:
         """
         Create targets for every unroll steps
@@ -184,7 +182,7 @@ class GameHistory:
         :param td_steps: n-step TD
         :param gamma: discount factor
         :param unroll_steps: number of unroll steps
-        :param action_space_size: size of the action space
+        :param n_actions: size of the action space
         :return: value targets, reward targets, policy targets
         """
         value_targets, reward_targets, policy_targets = [], [], []
@@ -211,8 +209,8 @@ class GameHistory:
                     bootstrap = 0
 
                 discounted_rewards = [
-                    (self.rewards[k]) * gamma ** k
-                    for k in range(step + 1, bootstrap_step + 1)
+                    reward * gamma ** k
+                    for k, reward in enumerate(self.rewards[step + 1: bootstrap_step + 1])
                 ]
                 value = sum(discounted_rewards) + bootstrap
             return value
@@ -230,7 +228,7 @@ class GameHistory:
             else:
                 value_targets.append(0)
                 reward_targets.append(0)
-                policy_targets.append([1 / action_space_size] * action_space_size)
+                policy_targets.append([1 / n_actions] * n_actions)
 
         return value_targets, reward_targets, policy_targets
 
@@ -256,11 +254,11 @@ class GraphColoring(Game):
         """Game over when every nodes is colored"""
         return -1 not in self.colors
 
-    def legal_actions(self, colors: List[int] = None) -> List[ActType]:
+    def legal_actions(self, colors: List[int] = None) -> np.ndarray:
         """Each non-colored node represents a potential action"""
         if colors is None:
             colors = self.colors
-        return [i for i, c in enumerate(colors) if c == -1]
+        return np.where(np.asarray(colors) == -1, 1, 0)
 
     def step(self, action: ActType) -> Tuple[ObsType, float, bool]:
         """Taking a node as the input action"""
@@ -285,12 +283,12 @@ class GraphColoring(Game):
 
     def observation(self) -> ObsType:
         """Using feature matrix as the observation, each feature vector is a tuple of the node label and color of that node"""
-        feature_matrix = [[d, c] for (d, c) in zip(self.graph.nodes, self.colors)]
+        feature_matrix = [[len(list(self.graph.neighbors(d))), c] for (d, c) in zip(self.graph.nodes, self.colors)]
         return feature_matrix
 
     def action_encoder(self, action: ActType) -> ActType:
         """Encode action into one-hot style"""
-        one_hot_action = [0 for _ in range(self.action_space_size)]
+        one_hot_action = [0 for _ in range(self.n_actions)]
         one_hot_action[action] = 1
         return one_hot_action
 
@@ -299,6 +297,7 @@ class GraphColoring(Game):
         :param training_steps: number of training steps
         :param training_step: current training step
         """
+        return 1.0
 
     def render(self) -> None:
         plt.figure(figsize=(7, 7))

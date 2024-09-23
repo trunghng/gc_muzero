@@ -5,11 +5,11 @@ import ray
 from torch_geometric.data import Batch
 
 from game import Game
-from mcts import MCTS
+from mcts.mcts import MCTS
 from network import MuZeroNetwork
 from replay_buffer import ReplayBuffer
 from shared_storage import SharedStorage
-from utils import ftensor, set_seed
+from utils.utils import ftensor, set_seed
 
 
 @ray.remote
@@ -24,7 +24,7 @@ class Reanalyser:
         self.game = game
         self.config = config
         self.target_network = MuZeroNetwork(config.observation_dim,
-                                            config.action_space_size,
+                                            config.n_actions,
                                             config.embedding_size,
                                             config.dynamics_layers,
                                             config.reward_layers,
@@ -56,8 +56,8 @@ class Reanalyser:
             observations = [
                 game_history.stack_n_observations(
                     t,
-                    self.config.stacked_observations,
-                    self.config.action_space_size,
+                    self.config.n_stacked_observations,
+                    self.config.n_actions,
                     self.config.stack_action
                 ) for t in range(len(game_history))
             ]
@@ -66,20 +66,19 @@ class Reanalyser:
                 values = [
                     self.target_network.initial_inference(
                         Batch.from_data_list([observation])
-                    )[2] for observation in observations
+                    )[2].item() for observation in observations
                 ]
 
             action_probabilities, root_values = [], []
             for t, observation in enumerate(observations):
-                root = self.mcts.search(
+                _, root_value, action_probs = self.mcts.search(
                     self.target_network,
                     observation,
                     self.game.legal_actions(game_history.colors[t]),
-                    game_history.actions,
                     self.game.action_encoder
                 )
-                action_probabilities.append(self.mcts.action_probabilities(root))
-                root_values.append(root.value())
+                action_probabilities.append(action_probs)
+                root_values.append(root_value)
 
             game_history.save_reanalysed_stats(
                 action_probabilities,

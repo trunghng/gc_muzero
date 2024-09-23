@@ -10,8 +10,8 @@ from torch_geometric.data import Batch
 from network import MuZeroNetwork
 from replay_buffer import ReplayBuffer
 from shared_storage import SharedStorage
-from network_utils import dict_to_cpu, scalar_to_support, scale_gradient, update_lr
-from utils import set_seed
+from utils.network_utils import dict_to_cpu, scalar_to_support, scale_gradient, update_lr
+from utils.utils import set_seed
 
 
 @ray.remote
@@ -21,7 +21,7 @@ class Trainer:
         set_seed(config.seed)
         self.config = config
         self.network = MuZeroNetwork(config.observation_dim,
-                                     config.action_space_size,
+                                     config.n_actions,
                                      config.embedding_size,
                                      config.dynamics_layers,
                                      config.reward_layers,
@@ -66,7 +66,7 @@ class Trainer:
         self, batch: Tuple[Batch, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
     ) -> Tuple[float, float, float, float]:
         # Batch, (B x (unroll_steps + 1)), (B x (unroll_steps + 1)),
-        # (B x (unroll_steps + 1)), (B x (unroll_steps + 1) x action_space_size)
+        # (B x (unroll_steps + 1)), (B x (unroll_steps + 1) x n_actions)
         observation_batch, action_batch, value_target_batch, reward_target_batch,\
             policy_target_batch = map(lambda x: x.to(self.config.device), batch)
         # (B x (unroll_steps + 1) x support_size), (B x (unroll_steps + 1) x support_size)
@@ -78,7 +78,7 @@ class Trainer:
 
         for k in range(1, action_batch.shape[1]):
             policy_logits, hidden_state, value_logits, reward_logits = self.network.recurrent_inference(
-                hidden_state, action_batch[:, k].unsqueeze(-1), False
+                hidden_state, action_batch[:, k], False
             )
 
             # Scale the gradient at the start of dynamics function by 0.5

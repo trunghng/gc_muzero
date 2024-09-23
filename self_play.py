@@ -1,15 +1,17 @@
 from copy import deepcopy
 from typing import Dict, Any
 
-import ray
 import numpy as np
+import ray
+import torch
 
 from game import Game, GameHistory
-from mcts import MCTS
+from mcts.mcts import MCTS
 from network import MuZeroNetwork
-from utils import set_seed
-from shared_storage import SharedStorage
+from player import GreedyPlayer, HumanPlayer, RandomPlayer
 from replay_buffer import ReplayBuffer
+from shared_storage import SharedStorage
+from utils.utils import set_seed
 
 
 @ray.remote
@@ -25,7 +27,7 @@ class SelfPlay:
         self.game = game
         self.mcts = MCTS(self.config)
         self.network = MuZeroNetwork(config.observation_dim,
-                                     config.action_space_size,
+                                     config.n_actions,
                                      config.embedding_size,
                                      config.dynamics_layers,
                                      config.reward_layers,
@@ -57,34 +59,45 @@ class SelfPlay:
                 )
                 replay_buffer.add.remote(game_history, shared_storage)
 
-    def play(self, temperature: float, render: bool=False) -> GameHistory:
+    def play(self, temperature: float, player: str = None, render: bool = False, **kwargs) -> GameHistory:
         """Run a self-play game"""
         observation, colors = self.game.reset()
         game_history = GameHistory(self.game)
 
-        while True:
-            stacked_observations = game_history.stack_n_observations(
-                -1,
-                self.config.stacked_observations,
-                self.config.action_space_size,
-                self.config.stack_action
-            )
-            root = self.mcts.search(
-                self.network,
-                stacked_observations,
-                self.game.legal_actions(),
-                game_history.actions,
-                self.game.action_encoder
-            )
-            action = self.mcts.select_action(root, temperature)
-            action_probs = self.mcts.action_probabilities(root)
-            next_observation, reward, terminated = self.game.step(action)
-            game_history.save(observation, action, reward, action_probs, root.value(), colors)
-            observation = next_observation
-            colors = deepcopy(self.game.colors)
-            if render:
+        if player == 'random':
+            player = RandomPlayer()
+        elif player == 'human':
+            player = HumanPlayer()
+        elif player == 'greedy':
+            player = GreedyPlayer(**kwargs)
+
+        with torch.no_grad():
+            while True:
+                if player is None:
+                    stacked_observations = game_history.stack_n_observations(
+                        -1,
+                        self.config.n_stacked_observations,
+                        self.config.n_actions,
+                        self.config.stack_action
+                    )
+                    action, root_value, action_probs = self.mcts.search(
+                        self.network,
+                        stacked_observations,
+                        self.game.legal_actions(),
+                        self.game.action_encoder,
+                        temperature
+                    )
+                else:
+                    action = player.play(self.game)
+                    action_probs, root_value = None, None
+
+                next_observation, reward, terminated = self.game.step(action)
+                game_history.save(observation, action, reward, action_probs, root_value, colors)
+                observation = next_observation
+                colors = deepcopy(self.game.colors)
+                if render:
                     self.game.render()
 
-            if terminated:
-                break
+                if terminated:
+                    break
         return game_history

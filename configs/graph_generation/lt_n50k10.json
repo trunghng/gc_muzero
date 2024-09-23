@@ -1,0 +1,10 @@
+{
+	"nodes":	50,
+	"graphs":	100,
+	"graph_types":	[
+		"LT"
+	],
+	"chromatic_number": 10,
+	"dataset_name":	"LT_n50k10",
+	"mode":	"graph_generation"
+}
