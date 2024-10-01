@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from torch_geometric.data import Data, Batch
 
-from game import GameHistory
+from games.game import GameHistory
 from shared_storage import SharedStorage
 from utils.utils import ftensor, set_seed
 

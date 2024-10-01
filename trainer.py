@@ -41,7 +41,7 @@ class Trainer:
                                     shared_storage: SharedStorage,
                                     replay_buffer: ReplayBuffer) -> None:
         while ray.get(shared_storage.get_info.remote('played_games')) < 1:
-            time.sleep(0.1)
+            time.sleep(10)
 
         while self.training_step < self.config.training_steps:
             batch = ray.get(replay_buffer.sample.remote())

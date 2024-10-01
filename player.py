@@ -3,7 +3,7 @@ import random
 
 import networkx as nx
 
-from game import Game, ActType
+from games.game import Game, ActType
 from utils.game_utils import mask_illegal_actions
 from utils.utils import dictkv_to_dictvk
 

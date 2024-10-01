@@ -5,7 +5,7 @@ import numpy as np
 import ray
 import torch
 
-from game import Game, GameHistory
+from games.game import Game, GameHistory
 from mcts.mcts import MCTS
 from network import MuZeroNetwork
 from player import GreedyPlayer, HumanPlayer, RandomPlayer

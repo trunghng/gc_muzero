@@ -11,7 +11,7 @@ import ray
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from game import GameHistory
+from games.game import GameHistory
 from replay_buffer import ReplayBuffer
 from self_play import SelfPlay
 from shared_storage import SharedStorage

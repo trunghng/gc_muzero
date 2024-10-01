@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 import pygraphviz
-from torch_geometric.data import Batch
+from torch_geometric.data import Batch, Data
 
 from mcts import action_selection
 from mcts import qtransforms
@@ -158,7 +158,7 @@ class MCTS:
     def search(
         self,
         network: MuZeroNetwork,
-        observation: np.ndarray,
+        observation: Data,
         legal_actions: np.ndarray,
         action_encoder: Callable,
         temperature: float = 0

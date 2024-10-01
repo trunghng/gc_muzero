@@ -8,7 +8,7 @@ import ray
 import numpy as np
 import torch
 
-from game import Game
+from games.game import Game
 from logger import Logger
 from self_play import SelfPlay
 from shared_storage import SharedStorage
@@ -24,7 +24,7 @@ class MuZero:
         self.game = game
         self.config = config
         set_seed(self.config.seed)
-        ray.init(log_to_driver=False)
+        ray.init()
 
         self.checkpoint = {
             'model_state_dict': None,       # Model state dict

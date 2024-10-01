@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 import torch
 
-from game import Game, GraphColoring
+from games.game import Game
+from games.graph_coloring import GraphColoring
 from muzero import MuZero
 from utils.graph_utils import generate_graphs, save_dataset, load_dataset
 
@@ -258,9 +259,6 @@ if __name__ == '__main__':
             print('Log directory not found')
             sys.exit(0)
 
-        args.nodes = config['nodes']
-        args.graph_types = config['graph_types']
-        args.chromatic_number = config['chromatic_number']
         game = create_game(args)
         args.observation_dim = game.observation_dim
         args.n_actions = game.n_actions

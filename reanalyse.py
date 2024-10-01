@@ -4,7 +4,7 @@ from typing import Any, Dict
 import ray
 from torch_geometric.data import Batch
 
-from game import Game
+from games.game import Game
 from mcts.mcts import MCTS
 from network import MuZeroNetwork
 from replay_buffer import ReplayBuffer
