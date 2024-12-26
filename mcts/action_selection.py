@@ -63,7 +63,7 @@ def muzero_action_selection_to_act(
     visit_logits = visit_logits - np.max(visit_logits)
     # tiny = np.finfo(visit_logits.dtype).tiny
     # visit_logits = visit_logits / np.maximum(tiny, temperature)
-    # Use 1e-27 instead to avoid overflow warning
+    # Use 1e-13 instead to avoid overflow warning
     visit_logits = visit_logits / np.maximum(1e-13, temperature)
     visit_probs = softmax(visit_logits)
     action = np.random.choice(tree.n_actions, p=visit_probs)
